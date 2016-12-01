@@ -17,8 +17,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession, Row}
-import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{Dataset, SparkSession, Row}
 
 import scala.xml._
 
@@ -48,11 +47,10 @@ object RunGraph extends Serializable {
     println("Number of unique co-occurrence pairs: " + cooccurs.count())
     spark.sql("SELECT pairs, cnt FROM topic_pairs ORDER BY cnt DESC LIMIT 10").show()
 
-    val vertices = topics.map{ case Row(topic: String) => (hashId(topic), topic) }
-    val edges = cooccurs.map{ case Row(topics: Seq[_], cnt: Long) => {
+    val vertices = topics.map { case Row(topic: String) => (hashId(topic), topic) }
+    val edges = cooccurs.map { case Row(topics: Seq[_], cnt: Long) =>
        val ids = topics.map(_.toString).map(hashId).sorted
        Edge(ids(0), ids(1), cnt)
-      }
     }
     val topicGraph = Graph(vertices.rdd, edges.rdd)
     topicGraph.cache()
@@ -60,7 +58,7 @@ object RunGraph extends Serializable {
     val connectedComponentGraph = topicGraph.connectedComponents()
     val componentCounts = sortedConnectedComponents(connectedComponentGraph)
     componentCounts.size
-    componentCounts.take(10)foreach(println)
+    componentCounts.take(10).foreach(println)
 
     val nameCID = topicGraph.vertices.innerJoin(connectedComponentGraph.vertices) {
       (topicId, name, componentId) => (name, componentId)
@@ -76,7 +74,7 @@ object RunGraph extends Serializable {
     topNamesAndDegrees(degrees, topicGraph).foreach(println)
 
     val T = medline.count()
-    val topicCountsRdd = topicDist.map{ case Row(topic: String, cnt: Long) => (hashId(topic), cnt) }.rdd
+    val topicCountsRdd = topicDist.map { case Row(topic: String, cnt: Long) => (hashId(topic), cnt) }.rdd
     val topicCountGraph = Graph(topicCountsRdd, topicGraph.edges)
     val chiSquaredGraph = topicCountGraph.mapTriplets(triplet => {
       chiSq(triplet.attr, triplet.srcAttr, triplet.dstAttr, T)
@@ -143,7 +141,7 @@ object RunGraph extends Serializable {
     val start = Map[VertexId, Int]()
     val res = mapGraph.ops.pregel(start)(update, iterate, mergeMaps)
     res.vertices.flatMap { case (id, m) =>
-      m.map{ case (k, v) =>
+      m.map { case (k, v) =>
         if (id < k) {
           (id, k, v)
         } else {
@@ -160,9 +158,7 @@ object RunGraph extends Serializable {
         m2.getOrElse(k, Int.MaxValue))
     }
 
-    (m1.keySet ++ m2.keySet).map{
-      k => (k, minThatExists(k))
-    }.toMap
+    (m1.keySet ++ m2.keySet).map(k => (k, minThatExists(k))).toMap
   }
 
   def update(id: VertexId, state: Map[VertexId, Int], msg: Map[VertexId, Int])
@@ -172,7 +168,7 @@ object RunGraph extends Serializable {
 
   def checkIncrement(a: Map[VertexId, Int], b: Map[VertexId, Int], bid: VertexId)
     : Iterator[(VertexId, Map[VertexId, Int])] = {
-    val aplus = a.map{ case (v, d) => v -> (d + 1) }
+    val aplus = a.map { case (v, d) => v -> (d + 1) }
     if (b != mergeMaps(aplus, b)) {
       Iterator((bid, aplus))
     } else {
